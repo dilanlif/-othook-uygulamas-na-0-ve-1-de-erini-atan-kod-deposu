@@ -1,0 +1,105 @@
+#include <WiFi.h>
+
+const char* ssid = "Mese";      
+const char* password = "Mese130317";  
+
+const char* host = "iothook.com";  
+const int httpPort = 80;          
+
+const int buttonPin = 0; 
+
+int lastButtonState = HIGH; 
+int currentButtonState;     
+int lastSendValue = -1;    
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) { delay(100); }
+
+  Serial.println();
+  Serial.println("******************************************************");
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  pinMode(buttonPin, INPUT_PULLUP); 
+} 
+
+void loop() {
+  WiFiClient client;
+
+  currentButtonState = digitalRead(buttonPin);
+
+  if (currentButtonState != lastButtonState) {
+    delay(50); 
+
+    
+    if (currentButtonState == LOW) { 
+      if (lastSendValue != 1) {
+        sendData(1);
+        lastSendValue = 1;
+      }
+    } else { 
+      if (lastSendValue != 0) {
+        sendData(0);
+        lastSendValue = 0;
+      }
+    }
+
+    lastButtonState = currentButtonState; 
+  }
+
+  delay(50); 
+}
+
+void sendData(int value) {
+  WiFiClient client;
+
+  Serial.println("Attempting to connect to host...");
+  if (!client.connect(host, httpPort)) {
+    Serial.println("Connection to host failed");
+    return;
+  }
+
+  Serial.println("Connected to host. Sending request...");
+
+  // HTTP isteğini oluştur
+  String footer = String(" HTTP/1.1\r\n") + "Host: " + String(host) + "\r\n" + "Connection: close\r\n\r\n";
+  String request = "GET /api/update/?api_key=9891b11bb2661973b0696d2a&field_1=" 
+                    + String(value) + "&field_2=0&field_3=0" + footer;
+
+  Serial.println("Request:");
+  Serial.println(request);
+
+  client.print(request);
+
+  Serial.println("Request sent. Waiting for response...");
+
+  int maxloops = 0;
+  while (!client.available() && maxloops < 1000) {
+    maxloops++;
+    delay(1); 
+  }
+
+  if (client.available() > 0) {
+    String line = client.readStringUntil('\r');
+    Serial.println("Response from server:");
+    Serial.println(line);
+  } else {
+    Serial.println("Client.available() timed out");
+  }
+
+  client.stop(); 
+}
+
